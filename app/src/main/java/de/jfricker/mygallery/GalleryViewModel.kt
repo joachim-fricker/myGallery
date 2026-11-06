@@ -9,6 +9,8 @@ import de.jfricker.mygallery.data.FaceAnalyzer
 import de.jfricker.mygallery.data.FaceDb
 import de.jfricker.mygallery.data.FaceEmbedder
 import de.jfricker.mygallery.data.FaceSnapshot
+import de.jfricker.mygallery.data.FavoritesStore
+import de.jfricker.mygallery.data.favKey
 import de.jfricker.mygallery.data.GroupDef
 import de.jfricker.mygallery.data.dateFromFolder
 import de.jfricker.mygallery.data.GeoEntry
@@ -171,6 +173,21 @@ class GalleryViewModel(app: Application) : AndroidViewModel(app) {
         scanFaces(ctx, list)
 
         _scan.value = ScanState(error = error)
+    }
+
+    // ---------------- Favoriten ----------------
+
+    private val favStore = FavoritesStore(File(app.filesDir, "favorites.txt"))
+    private val _favorites = MutableStateFlow(favStore.load())
+    val favorites: StateFlow<Set<String>> = _favorites
+
+    fun toggleFavorite(img: MediaImage) = setFavorite(listOf(img), img.favKey !in _favorites.value)
+
+    fun setFavorite(images: List<MediaImage>, favorite: Boolean) {
+        val keys = images.map { it.favKey }
+        val next = if (favorite) _favorites.value + keys else _favorites.value - keys.toSet()
+        _favorites.value = next
+        viewModelScope.launch(Dispatchers.IO) { favStore.save(next) }
     }
 
     // ---------------- Personen ----------------

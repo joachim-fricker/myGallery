@@ -6,6 +6,10 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.compositionLocalOf
+import de.jfricker.mygallery.data.favKey
 import androidx.compose.material3.Icon
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Box
@@ -30,6 +34,9 @@ import androidx.compose.ui.unit.dp
 import de.jfricker.mygallery.data.MediaImage
 import de.jfricker.mygallery.data.monthGroups
 
+/** Favoriten (Schlüssel = MediaImage.favKey) für alle Bilderraster */
+val LocalFavorites = compositionLocalOf<Set<String>> { emptySet() }
+
 /** Bilderraster mit Monats-Überschriften. [onOpen] bekommt den Index in [images]. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -48,6 +55,7 @@ fun ImageGrid(
         return
     }
     val groups = remember(images) { monthGroups(images) }
+    val favorites = LocalFavorites.current
     val indexOf = remember(images) {
         HashMap<Long, Int>(images.size * 2).apply { images.forEachIndexed { i, m -> put(m.id, i) } }
     }
@@ -77,6 +85,17 @@ fun ImageGrid(
                         )
                 ) {
                     Thumbnail(img, Modifier.fillMaxSize().padding(if (isSelected) 8.dp else 0.dp))
+                    if (img.favKey in favorites) {
+                        Icon(
+                            Icons.Default.Favorite,
+                            contentDescription = "Favorit",
+                            tint = Color.White,
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(4.dp)
+                                .size(18.dp),
+                        )
+                    }
                     if (isSelected) {
                         Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)))
                         Icon(

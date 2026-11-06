@@ -30,6 +30,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import de.jfricker.mygallery.data.Album
+import de.jfricker.mygallery.data.MediaImage
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.ui.graphics.Color
 import de.jfricker.mygallery.data.YearAlbums
 
 /**
@@ -37,7 +43,13 @@ import de.jfricker.mygallery.data.YearAlbums
  *     alle Alben/Ordner dieses Jahres
  */
 @Composable
-fun AlbumsScreen(years: List<YearAlbums>, state: LazyGridState, onOpen: (Album) -> Unit) {
+fun AlbumsScreen(
+    years: List<YearAlbums>,
+    state: LazyGridState,
+    favorites: List<MediaImage> = emptyList(),
+    onOpenFavorites: () -> Unit = {},
+    onOpen: (Album) -> Unit,
+) {
     if (years.isEmpty()) {
         EmptyHint("Keine Alben gefunden"); return
     }
@@ -49,6 +61,49 @@ fun AlbumsScreen(years: List<YearAlbums>, state: LazyGridState, onOpen: (Album) 
         state = state,
         modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
     ) {
+        // Favoriten ganz oben
+        item(key = "fav_header", span = { GridItemSpan(maxLineSpan) }) {
+            Text(
+                "Favoriten",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(start = 4.dp, top = 16.dp, bottom = 8.dp),
+            )
+        }
+        item(key = "fav_album") {
+            Column(
+                Modifier
+                    .padding(start = 12.dp, top = 4.dp, end = 4.dp, bottom = 4.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable(onClick = onOpenFavorites)
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    favorites.firstOrNull()?.let { Thumbnail(it, Modifier.fillMaxSize()) }
+                    Icon(
+                        Icons.Default.Favorite,
+                        contentDescription = null,
+                        tint = Color(0xFFFF5A6E),
+                        modifier = Modifier
+                            .align(if (favorites.isEmpty()) Alignment.Center else Alignment.BottomEnd)
+                            .padding(8.dp)
+                            .size(if (favorites.isEmpty()) 48.dp else 28.dp),
+                    )
+                }
+                Text("Favoriten", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(start = 4.dp, top = 4.dp))
+                Text(
+                    if (favorites.isEmpty()) "Herz im Vollbild antippen" else "${favorites.size} Bilder",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(start = 4.dp, bottom = 4.dp),
+                )
+            }
+        }
         for (y in years) {
             val open = collapsed[y.year] != true
             item(key = "y_${y.year}", span = { GridItemSpan(maxLineSpan) }, contentType = "year") {

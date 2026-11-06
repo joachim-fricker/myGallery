@@ -21,7 +21,10 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Info
+import de.jfricker.mygallery.data.favKey
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -64,7 +67,9 @@ fun ViewerScreen(
     onShowOnMap: ((lat: Double, lon: Double) -> Unit)? = null,
     personNames: (Long) -> List<String> = { emptyList() },
     tagging: FaceTagging? = null,
+    onToggleFavorite: ((MediaImage) -> Unit)? = null,
 ) {
+    val favorites = LocalFavorites.current
     BackHandler(onBack = onBack)
     if (images.isEmpty()) {
         LaunchedEffect(Unit) { onBack() }
@@ -118,6 +123,16 @@ fun ViewerScreen(
                 Column(Modifier.weight(1f)) {
                     Text(dateText, color = Color.White, style = MaterialTheme.typography.titleMedium)
                     Text(subtitle, color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.bodySmall)
+                }
+                if (onToggleFavorite != null) {
+                    val fav = current.favKey in favorites
+                    IconButton(onClick = { onToggleFavorite(current) }) {
+                        Icon(
+                            if (fav) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                            contentDescription = if (fav) "Aus Favoriten entfernen" else "Zu Favoriten",
+                            tint = if (fav) Color(0xFFFF5A6E) else Color.White,
+                        )
+                    }
                 }
                 IconButton(onClick = { showDetails = true }) {
                     Icon(Icons.Default.Info, contentDescription = "Details", tint = Color.White)

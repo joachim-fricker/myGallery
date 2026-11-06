@@ -31,6 +31,8 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
+import androidx.compose.runtime.CompositionLocalProvider
+import de.jfricker.mygallery.data.favKey
 import androidx.compose.material3.Surface
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.draw.clip
@@ -88,6 +90,7 @@ sealed class Screen {
     class Viewer(val ids: List<Long>, val start: Int) : Screen()
     class PersonDetail(val personId: Int) : Screen()
     class Review(val personId: Int, val allMode: Boolean) : Screen()
+    class Favorites : Screen()
 }
 
 private enum class Tab(val label: String, val icon: ImageVector) {
@@ -118,6 +121,8 @@ fun GalleryApp(vm: GalleryViewModel) {
     val scan by vm.scan.collectAsStateWithLifecycle()
     val faces by vm.faces.collectAsStateWithLifecycle()
     val openGroups by vm.openGroups.collectAsStateWithLifecycle()
+    val favorites by vm.favorites.collectAsStateWithLifecycle()
+    val favoriteImages = remember(images, favorites) { images.filter { it.favKey in favorites } }
     val showUnnamed by vm.showUnnamed.collectAsStateWithLifecycle()
     val facesBusy by vm.facesBusy.collectAsStateWithLifecycle()
 
@@ -161,290 +166,345 @@ fun GalleryApp(vm: GalleryViewModel) {
 
     BackHandler(enabled = stack.isNotEmpty()) { pop() }
 
-    when (val top = stack.lastOrNull()) {
-        null -> RootScaffold(
-            tab = Tab.entries[tab],
-            onTab = { tab = it.ordinal },
-            title = when (Tab.entries[tab]) {
-                Tab.ALL -> "Alle Bilder (${images.size})"
-                Tab.ALBUMS -> "Alben (${albums.sumOf { it.albums.size }})"
-                Tab.PERSONS -> "Personen (${persons.size})"
-                Tab.COUNTRIES -> "Länder (${countries.size})"
-                Tab.MAP -> "Karte (${mapPoints.size})"
-            },
-            scan = scan,
-            onRefresh = { vm.refresh() },
-            onRetry = { vm.retryScan() },
-        ) {
-            if (loaded && images.isEmpty()) {
-                EmptyHint("Keine Bilder gefunden.\nGesucht wird in DCIM/Camera und Data/images.")
-            } else when (Tab.entries[tab]) {
-                Tab.ALL -> ImageGrid(images, onOpen = { openViewer(images, it) }, state = allGrid)
-                Tab.ALBUMS -> AlbumsScreen(albums, albumGrid) {
-                    push(Screen.AlbumDetail(it.path, it.year, it.isCamera, if (it.isCamera) "Kamera ${it.year}" else it.name))
-                }
-                Tab.PERSONS -> PersonsScreen(
-                    persons = persons,
-                    groups = faces.groups,
-                    modelMissing = faces.modelMissing,
-                    state = personGrid,
-                    openGroups = openGroups,
-                    onGroupOpen = { gid, open -> vm.setGroupOpen(gid, open) },
-                    onEditGroups = { vm.applyGroups(it) },
-                    showUnnamed = showUnnamed,
-                    onShowUnnamed = { vm.setShowUnnamed(it) },
-                    onReorder = { vm.setPersonOrder(it) },
-                    busy = facesBusy,
-                    modelLabel = faces.modelLabel,
+    CompositionLocalProvider(LocalFavorites provides favorites) {
+        when (val top = stack.lastOrNull()) {
+            null -> RootScaffold(
+                tab = Tab.entries[tab],
+                onTab = { tab = it.ordinal },
+                title = when (Tab.entries[tab]) {
+                    Tab.ALL -> "Alle Bilder (${images.size})"
+                    Tab.ALBUMS -> "Alben (${albums.sumOf { it.albums.size }})"
+                    Tab.PERSONS -> "Personen (${persons.size})"
+                    Tab.COUNTRIES -> "Länder (${countries.size})"
+                    Tab.MAP -> "Karte (${mapPoints.size})"
+                },
+                scan = scan,
+                onRefresh = { vm.refresh() },
+                onRetry = { vm.retryScan() },
+            ) {
+                if (loaded && images.isEmpty()) {
+                    EmptyHint("Keine Bilder gefunden.\nGesucht wird in DCIM/Camera und Data/images.")
+                } else when (Tab.entries[tab]) {
+                    Tab.ALL -> ImageGrid(images, onOpen = { openViewer(images, it) }, state = allGrid)
+                    Tab.ALBUMS -> AlbumsScreen(
+                    albums, albumGrid,
+                    favorites = favoriteImages,
+                    onOpenFavorites = { push(Screen.Favorites()) },
                 ) {
-                    push(Screen.PersonDetail(it.id))
+                        push(Screen.AlbumDetail(it.path, it.year, it.isCamera, if (it.isCamera) "Kamera ${it.year}" else it.name))
+                    }
+                    Tab.PERSONS -> PersonsScreen(
+                        persons = persons,
+                        groups = faces.groups,
+                        modelMissing = faces.modelMissing,
+                        state = personGrid,
+                        openGroups = openGroups,
+                        onGroupOpen = { gid, open -> vm.setGroupOpen(gid, open) },
+                        onEditGroups = { vm.applyGroups(it) },
+                        showUnnamed = showUnnamed,
+                        onShowUnnamed = { vm.setShowUnnamed(it) },
+                        onReorder = { vm.setPersonOrder(it) },
+                        busy = facesBusy,
+                        modelLabel = faces.modelLabel,
+                    ) {
+                        push(Screen.PersonDetail(it.id))
+                    }
+                    Tab.COUNTRIES -> CountriesScreen(countries, withoutGps, countryList) {
+                        push(Screen.CountryDetail(it.code, "${it.flag} ${it.name}"))
+                    }
+                    Tab.MAP -> MapScreen(mapPoints, vm) { title, ids -> push(Screen.Selection(title, ids)) }
                 }
-                Tab.COUNTRIES -> CountriesScreen(countries, withoutGps, countryList) {
-                    push(Screen.CountryDetail(it.code, "${it.flag} ${it.name}"))
+            }
+
+            is Screen.AlbumDetail -> {
+                val list = remember(images, top) {
+                    images.filter { it.relativePath == top.path && (!top.isCamera || yearOf(it.date) == top.year) }
                 }
-                Tab.MAP -> MapScreen(mapPoints, vm) { title, ids -> push(Screen.Selection(title, ids)) }
+                DetailScaffold(top.title, "${list.size} Bilder · ${top.path}", ::pop) { mod ->
+                    ImageGrid(list, onOpen = { openViewer(list, it) }, modifier = mod, state = top.gridState)
+                }
             }
-        }
 
-        is Screen.AlbumDetail -> {
-            val list = remember(images, top) {
-                images.filter { it.relativePath == top.path && (!top.isCamera || yearOf(it.date) == top.year) }
+            is Screen.CountryDetail -> {
+                val list = remember(images, geo, top.code) { images.filter { geo[it.id]?.country == top.code } }
+                DetailScaffold(top.title, "${list.size} Bilder", ::pop) { mod ->
+                    ImageGrid(list, onOpen = { openViewer(list, it) }, modifier = mod, state = top.gridState)
+                }
             }
-            DetailScaffold(top.title, "${list.size} Bilder · ${top.path}", ::pop) { mod ->
-                ImageGrid(list, onOpen = { openViewer(list, it) }, modifier = mod, state = top.gridState)
-            }
-        }
 
-        is Screen.CountryDetail -> {
-            val list = remember(images, geo, top.code) { images.filter { geo[it.id]?.country == top.code } }
-            DetailScaffold(top.title, "${list.size} Bilder", ::pop) { mod ->
-                ImageGrid(list, onOpen = { openViewer(list, it) }, modifier = mod, state = top.gridState)
+            is Screen.Selection -> {
+                val list = remember(byId, top.ids) { top.ids.mapNotNull { byId[it] } }
+                DetailScaffold(top.title, "Auswahl auf der Karte", ::pop) { mod ->
+                    ImageGrid(list, onOpen = { openViewer(list, it) }, modifier = mod, state = top.gridState)
+                }
             }
-        }
 
-        is Screen.Selection -> {
-            val list = remember(byId, top.ids) { top.ids.mapNotNull { byId[it] } }
-            DetailScaffold(top.title, "Auswahl auf der Karte", ::pop) { mod ->
-                ImageGrid(list, onOpen = { openViewer(list, it) }, modifier = mod, state = top.gridState)
+            is Screen.PersonDetail -> {
+                val all = remember(images, faces) { buildPersons(images, faces, includeSmall = true) }
+                val person = all.firstOrNull { it.id == top.personId }
+                if (person == null) {
+                    LaunchedEffect(Unit) { pop() }
+                } else {
+                    var menu by remember { mutableStateOf(false) }
+                    var rename by remember { mutableStateOf(false) }
+                    var merge by remember { mutableStateOf(false) }
+                    // Mehrfachauswahl (Bild-IDs)
+                    val selected = remember { mutableStateListOf<Long>() }
+                    val selecting = selected.isNotEmpty()
+                    var assign by remember { mutableStateOf(false) }
+                    var newPerson by remember { mutableStateOf(false) }
+                    var confirmRemove by remember { mutableStateOf(false) }
+                    var pickGroup by remember { mutableStateOf(false) }
+
+                    // Gesichter dieser Person auf den ausgewählten Bildern
+                    fun selectedFaceIds(): List<Long> = selected.flatMap { imgId ->
+                        faces.facesByImage[imgId]?.filter { it.personId == person.id }?.map { it.id } ?: emptyList()
+                    }
+                    fun toggle(id: Long) { if (id in selected) selected.remove(id) else selected.add(id) }
+
+                    // Zurück-Taste beendet zuerst die Auswahl
+                    BackHandler(enabled = selecting) { selected.clear() }
+
+                    DetailScaffold(
+                        title = if (selecting) "${selected.size} ausgewählt"
+                        else person.displayName,
+                        subtitle = if (selecting) person.displayName
+                        else "${person.images.size} Bilder · lange drücken = auswählen",
+                        onBack = { if (selecting) selected.clear() else pop() },
+                        actions = {
+                            if (selecting) {
+                                TextButton(onClick = {
+                                    if (selected.size == person.images.size) selected.clear()
+                                    else { selected.clear(); selected.addAll(person.images.map { it.id }) }
+                                }) { Text(if (selected.size == person.images.size) "Keine" else "Alle") }
+                            } else {
+                                IconButton(onClick = { menu = true }) { Icon(Icons.Default.MoreVert, contentDescription = "Menü") }
+                                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                                    if (person.name != null) {
+                                        DropdownMenuItem(
+                                            text = { Text("Vorschläge prüfen (${person.suggestions.size})") },
+                                            onClick = { menu = false; push(Screen.Review(person.id, false)) },
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Automatische prüfen (${person.autoCount})") },
+                                            onClick = { menu = false; push(Screen.Review(person.id, true)) },
+                                        )
+                                    }
+                                    DropdownMenuItem(text = { Text("Umbenennen") }, onClick = { menu = false; rename = true })
+                                    DropdownMenuItem(text = { Text("Zusammenführen mit …") }, onClick = { menu = false; merge = true })
+                                    if (person.name != null) {
+                                        DropdownMenuItem(
+                                            text = { Text("Gruppe: ${person.groupName ?: "Haupt"} …") },
+                                            onClick = { menu = false; pickGroup = true },
+                                        )
+                                    }
+                                }
+                            }
+                        },
+                        bottomBar = {
+                            if (selecting) {
+                                BottomAppBar {
+                                    TextButton(
+                                        onClick = {
+                                            selectedFaceIds().firstOrNull()?.let { vm.setPersonCover(person.id, it) }
+                                            selected.clear()
+                                        },
+                                        enabled = selected.size == 1,
+                                        modifier = Modifier.weight(1f),
+                                    ) { Text("Titelbild") }
+                                    TextButton(onClick = { assign = true }, modifier = Modifier.weight(1f)) {
+                                        Text("Zuordnen …")
+                                    }
+                                    TextButton(onClick = { confirmRemove = true }, modifier = Modifier.weight(1f)) {
+                                        Text("Entfernen")
+                                    }
+                                }
+                            }
+                        },
+                    ) { mod ->
+                        Column(mod) {
+                            if (!selecting && person.name != null && person.suggestions.isNotEmpty()) {
+                                Surface(
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(8.dp)
+                                        .clip(MaterialTheme.shapes.medium)
+                                        .clickable { push(Screen.Review(person.id, false)) },
+                                ) {
+                                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Column(Modifier.weight(1f)) {
+                                            Text(
+                                                "${person.suggestions.size} Vorschläge prüfen",
+                                                style = MaterialTheme.typography.titleSmall,
+                                            )
+                                            Text(
+                                                "Ist das ${person.displayName}? Je mehr du bestätigst, desto besser wird die Erkennung.",
+                                                style = MaterialTheme.typography.bodySmall,
+                                            )
+                                        }
+                                        TextButton(onClick = { push(Screen.Review(person.id, false)) }) { Text("Prüfen") }
+                                    }
+                                }
+                            }
+                            ImageGrid(
+                                person.images,
+                                onOpen = { i ->
+                                    if (selecting) toggle(person.images[i].id) else openViewer(person.images, i)
+                                },
+                                onLongPress = { i -> toggle(person.images[i].id) },
+                                selected = selected.toSet(),
+                                modifier = Modifier.weight(1f),
+                                state = top.gridState,
+                            )
+                        }
+                    }
+
+                    if (pickGroup) {
+                        GroupPickerDialog(
+                            groups = faces.groups,
+                            current = person.groupId,
+                            onDismiss = { pickGroup = false },
+                            onCreate = { name -> vm.createGroup(name, person.id); pickGroup = false },
+                        ) { g ->
+                            vm.setPersonGroup(person.id, g.id)
+                            pickGroup = false
+                        }
+                    }
+                    if (rename) RenameDialog(person.name, onDismiss = { rename = false }) {
+                        vm.renamePerson(person.id, it); rename = false
+                    }
+                    if (merge) MergeDialog(all.filter { it.id != person.id }, onDismiss = { merge = false }) { target ->
+                        vm.mergePersons(person.id, target.id)
+                        merge = false
+                        pop()
+                        push(Screen.PersonDetail(target.id))
+                    }
+                    if (assign) {
+                        PersonPickerDialog(
+                            "Wer ist auf ${if (selected.size == 1) "dem Bild" else "den ${selected.size} Bildern"}?",
+                            all.filter { it.id != person.id && (it.name != null || it.images.size >= 3) },
+                            onDismiss = { assign = false },
+                            onCreateNew = { typed ->
+                                if (typed.isNotBlank()) {
+                                    vm.moveFacesToNewPerson(selectedFaceIds(), typed)
+                                    selected.clear()
+                                } else newPerson = true
+                                assign = false
+                            },
+                        ) { target ->
+                            vm.moveFacesToPerson(selectedFaceIds(), target.id)
+                            selected.clear()
+                            assign = false
+                        }
+                    }
+                    if (newPerson) {
+                        RenameDialog(null, onDismiss = { newPerson = false }) { name ->
+                            vm.moveFacesToNewPerson(selectedFaceIds(), name)
+                            selected.clear()
+                            newPerson = false
+                        }
+                    }
+                    if (confirmRemove) {
+                        AlertDialog(
+                            onDismissRequest = { confirmRemove = false },
+                            title = { Text("Aus ${person.displayName} entfernen?") },
+                            text = { Text("${selected.size} Bild(er) gehören nicht zu ${person.displayName}.") },
+                            confirmButton = {
+                                TextButton(onClick = {
+                                    vm.removeFacesFromPerson(selectedFaceIds())
+                                    selected.clear()
+                                    confirmRemove = false
+                                }) { Text("Entfernen") }
+                            },
+                            dismissButton = { TextButton(onClick = { confirmRemove = false }) { Text("Abbrechen") } },
+                        )
+                    }
+                }
             }
-        }
 
-        is Screen.PersonDetail -> {
-            val all = remember(images, faces) { buildPersons(images, faces, includeSmall = true) }
-            val person = all.firstOrNull { it.id == top.personId }
-            if (person == null) {
-                LaunchedEffect(Unit) { pop() }
-            } else {
-                var menu by remember { mutableStateOf(false) }
-                var rename by remember { mutableStateOf(false) }
-                var merge by remember { mutableStateOf(false) }
-                // Mehrfachauswahl (Bild-IDs)
+            is Screen.Review -> {
+                val all = remember(images, faces) { buildPersons(images, faces, includeSmall = true) }
+                val person = all.firstOrNull { it.id == top.personId }
+                if (person == null) {
+                    LaunchedEffect(Unit) { pop() }
+                } else {
+                    ReviewScreen(
+                        person = person,
+                        allMode = top.allMode,
+                        onSubmit = { confirm, reject -> vm.reviewFaces(person.id, confirm, reject) },
+                        onOpenImage = { img -> openViewer(listOf(img), 0) },
+                        onBack = ::pop,
+                    )
+                }
+            }
+
+            is Screen.Favorites -> {
                 val selected = remember { mutableStateListOf<Long>() }
                 val selecting = selected.isNotEmpty()
-                var assign by remember { mutableStateOf(false) }
-                var newPerson by remember { mutableStateOf(false) }
-                var confirmRemove by remember { mutableStateOf(false) }
-                var pickGroup by remember { mutableStateOf(false) }
-
-                // Gesichter dieser Person auf den ausgewählten Bildern
-                fun selectedFaceIds(): List<Long> = selected.flatMap { imgId ->
-                    faces.facesByImage[imgId]?.filter { it.personId == person.id }?.map { it.id } ?: emptyList()
-                }
-                fun toggle(id: Long) { if (id in selected) selected.remove(id) else selected.add(id) }
-
-                // Zurück-Taste beendet zuerst die Auswahl
                 BackHandler(enabled = selecting) { selected.clear() }
-
                 DetailScaffold(
-                    title = if (selecting) "${selected.size} ausgewählt"
-                    else person.displayName,
-                    subtitle = if (selecting) person.displayName
-                    else "${person.images.size} Bilder · lange drücken = auswählen",
+                    title = if (selecting) "${selected.size} ausgewählt" else "Favoriten",
+                    subtitle = if (selecting) "Favoriten" else "${favoriteImages.size} Bilder · lange drücken = auswählen",
                     onBack = { if (selecting) selected.clear() else pop() },
                     actions = {
-                        if (selecting) {
-                            TextButton(onClick = {
-                                if (selected.size == person.images.size) selected.clear()
-                                else { selected.clear(); selected.addAll(person.images.map { it.id }) }
-                            }) { Text(if (selected.size == person.images.size) "Keine" else "Alle") }
-                        } else {
-                            IconButton(onClick = { menu = true }) { Icon(Icons.Default.MoreVert, contentDescription = "Menü") }
-                            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                                if (person.name != null) {
-                                    DropdownMenuItem(
-                                        text = { Text("Vorschläge prüfen (${person.suggestions.size})") },
-                                        onClick = { menu = false; push(Screen.Review(person.id, false)) },
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Automatische prüfen (${person.autoCount})") },
-                                        onClick = { menu = false; push(Screen.Review(person.id, true)) },
-                                    )
-                                }
-                                DropdownMenuItem(text = { Text("Umbenennen") }, onClick = { menu = false; rename = true })
-                                DropdownMenuItem(text = { Text("Zusammenführen mit …") }, onClick = { menu = false; merge = true })
-                                if (person.name != null) {
-                                    DropdownMenuItem(
-                                        text = { Text("Gruppe: ${person.groupName ?: "Haupt"} …") },
-                                        onClick = { menu = false; pickGroup = true },
-                                    )
-                                }
-                            }
-                        }
+                        if (selecting) TextButton(onClick = {
+                            if (selected.size == favoriteImages.size) selected.clear()
+                            else { selected.clear(); selected.addAll(favoriteImages.map { it.id }) }
+                        }) { Text(if (selected.size == favoriteImages.size) "Keine" else "Alle") }
                     },
                     bottomBar = {
-                        if (selecting) {
-                            BottomAppBar {
-                                TextButton(
-                                    onClick = {
-                                        selectedFaceIds().firstOrNull()?.let { vm.setPersonCover(person.id, it) }
-                                        selected.clear()
-                                    },
-                                    enabled = selected.size == 1,
-                                    modifier = Modifier.weight(1f),
-                                ) { Text("Titelbild") }
-                                TextButton(onClick = { assign = true }, modifier = Modifier.weight(1f)) {
-                                    Text("Zuordnen …")
-                                }
-                                TextButton(onClick = { confirmRemove = true }, modifier = Modifier.weight(1f)) {
-                                    Text("Entfernen")
-                                }
-                            }
+                        if (selecting) BottomAppBar {
+                            TextButton(
+                                onClick = {
+                                    vm.setFavorite(favoriteImages.filter { it.id in selected }, false)
+                                    selected.clear()
+                                },
+                                modifier = Modifier.weight(1f),
+                            ) { Text("Aus Favoriten entfernen") }
                         }
                     },
                 ) { mod ->
-                    Column(mod) {
-                        if (!selecting && person.name != null && person.suggestions.isNotEmpty()) {
-                            Surface(
-                                color = MaterialTheme.colorScheme.primaryContainer,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(8.dp)
-                                    .clip(MaterialTheme.shapes.medium)
-                                    .clickable { push(Screen.Review(person.id, false)) },
-                            ) {
-                                Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Column(Modifier.weight(1f)) {
-                                        Text(
-                                            "${person.suggestions.size} Vorschläge prüfen",
-                                            style = MaterialTheme.typography.titleSmall,
-                                        )
-                                        Text(
-                                            "Ist das ${person.displayName}? Je mehr du bestätigst, desto besser wird die Erkennung.",
-                                            style = MaterialTheme.typography.bodySmall,
-                                        )
-                                    }
-                                    TextButton(onClick = { push(Screen.Review(person.id, false)) }) { Text("Prüfen") }
-                                }
-                            }
-                        }
+                    if (favoriteImages.isEmpty()) {
+                        EmptyHint("Noch keine Favoriten.\nIm Vollbild auf das Herz tippen.", mod)
+                    } else {
                         ImageGrid(
-                            person.images,
+                            favoriteImages,
                             onOpen = { i ->
-                                if (selecting) toggle(person.images[i].id) else openViewer(person.images, i)
+                                val img = favoriteImages[i]
+                                if (selecting) { if (img.id in selected) selected.remove(img.id) else selected.add(img.id) }
+                                else openViewer(favoriteImages, i)
                             },
-                            onLongPress = { i -> toggle(person.images[i].id) },
+                            onLongPress = { i ->
+                                val id = favoriteImages[i].id
+                                if (id in selected) selected.remove(id) else selected.add(id)
+                            },
                             selected = selected.toSet(),
-                            modifier = Modifier.weight(1f),
+                            modifier = mod,
                             state = top.gridState,
                         )
                     }
                 }
-
-                if (pickGroup) {
-                    GroupPickerDialog(
-                        groups = faces.groups,
-                        current = person.groupId,
-                        onDismiss = { pickGroup = false },
-                        onCreate = { name -> vm.createGroup(name, person.id); pickGroup = false },
-                    ) { g ->
-                        vm.setPersonGroup(person.id, g.id)
-                        pickGroup = false
-                    }
-                }
-                if (rename) RenameDialog(person.name, onDismiss = { rename = false }) {
-                    vm.renamePerson(person.id, it); rename = false
-                }
-                if (merge) MergeDialog(all.filter { it.id != person.id }, onDismiss = { merge = false }) { target ->
-                    vm.mergePersons(person.id, target.id)
-                    merge = false
-                    pop()
-                    push(Screen.PersonDetail(target.id))
-                }
-                if (assign) {
-                    PersonPickerDialog(
-                        "Wer ist auf ${if (selected.size == 1) "dem Bild" else "den ${selected.size} Bildern"}?",
-                        all.filter { it.id != person.id && (it.name != null || it.images.size >= 3) },
-                        onDismiss = { assign = false },
-                        onCreateNew = { typed ->
-                            if (typed.isNotBlank()) {
-                                vm.moveFacesToNewPerson(selectedFaceIds(), typed)
-                                selected.clear()
-                            } else newPerson = true
-                            assign = false
-                        },
-                    ) { target ->
-                        vm.moveFacesToPerson(selectedFaceIds(), target.id)
-                        selected.clear()
-                        assign = false
-                    }
-                }
-                if (newPerson) {
-                    RenameDialog(null, onDismiss = { newPerson = false }) { name ->
-                        vm.moveFacesToNewPerson(selectedFaceIds(), name)
-                        selected.clear()
-                        newPerson = false
-                    }
-                }
-                if (confirmRemove) {
-                    AlertDialog(
-                        onDismissRequest = { confirmRemove = false },
-                        title = { Text("Aus ${person.displayName} entfernen?") },
-                        text = { Text("${selected.size} Bild(er) gehören nicht zu ${person.displayName}.") },
-                        confirmButton = {
-                            TextButton(onClick = {
-                                vm.removeFacesFromPerson(selectedFaceIds())
-                                selected.clear()
-                                confirmRemove = false
-                            }) { Text("Entfernen") }
-                        },
-                        dismissButton = { TextButton(onClick = { confirmRemove = false }) { Text("Abbrechen") } },
-                    )
-                }
             }
-        }
 
-        is Screen.Review -> {
-            val all = remember(images, faces) { buildPersons(images, faces, includeSmall = true) }
-            val person = all.firstOrNull { it.id == top.personId }
-            if (person == null) {
-                LaunchedEffect(Unit) { pop() }
-            } else {
-                ReviewScreen(
-                    person = person,
-                    allMode = top.allMode,
-                    onSubmit = { confirm, reject -> vm.reviewFaces(person.id, confirm, reject) },
-                    onOpenImage = { img -> openViewer(listOf(img), 0) },
+            is Screen.Viewer -> {
+                val list = remember(byId, top.ids) { top.ids.mapNotNull { byId[it] } }
+                ViewerScreen(
+                    list, top.start, geo,
                     onBack = ::pop,
+                    personNames = personNames,
+                    onToggleFavorite = { vm.toggleFavorite(it) },
+                    tagging = if (faces.modelMissing) null else tagging,
+                    onShowOnMap = { lat, lon ->
+                        // Grosse Karte auf das Bild zentrieren
+                        vm.mapLat = lat
+                        vm.mapLon = lon
+                        vm.mapZoom = 16.0
+                        stack.clear()
+                        tab = Tab.MAP.ordinal
+                    },
                 )
             }
-        }
-
-        is Screen.Viewer -> {
-            val list = remember(byId, top.ids) { top.ids.mapNotNull { byId[it] } }
-            ViewerScreen(
-                list, top.start, geo,
-                onBack = ::pop,
-                personNames = personNames,
-                tagging = if (faces.modelMissing) null else tagging,
-                onShowOnMap = { lat, lon ->
-                    // Grosse Karte auf das Bild zentrieren
-                    vm.mapLat = lat
-                    vm.mapLon = lon
-                    vm.mapZoom = 16.0
-                    stack.clear()
-                    tab = Tab.MAP.ordinal
-                },
-            )
         }
     }
 }
