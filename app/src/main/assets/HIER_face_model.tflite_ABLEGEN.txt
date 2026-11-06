@@ -1,0 +1,18 @@
+Personen-Erkennung: Gesichtsmodell
+==================================
+
+EMPFOHLEN (deutlich genauer): InsightFace w600k_mbf  ->  face_model.onnx
+  1. buffalo_s.zip herunterladen:
+       https://github.com/deepinsight/insightface/releases  (Release v0.7, Datei buffalo_s.zip)
+  2. Entpacken, die Datei  w600k_mbf.onnx  (ca. 13 MB) nehmen
+  3. In  face_model.onnx  umbenennen und HIER ablegen
+  Hinweis: InsightFace-Modelle sind nur für nicht-kommerzielle Nutzung freigegeben (private App: ok).
+
+ALTERNATIV: MobileFaceNet als  face_model.tflite  (bisheriges Modell, ungenauer)
+
+Liegen beide Dateien hier, wird face_model.onnx verwendet.
+Beim Wechsel des Modells scannt die App alle Bilder neu; Namen, Reihenfolge und Other werden
+übernommen, und bisherige Zuordnungen benannter Personen werden auf die neu gefundenen
+Gesichter an derselben Stelle übertragen.
+
+Optional für komplett offline Länder: countries_10m.geojson ebenfalls hier ablegen (siehe README.md).

@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- myGallery: Polaroid mit Bergen, Sonne und "JF" -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:scaleX="0.88"
+        android:scaleY="0.88">
+        <!-- Schatten -->
+        <path
+            android:fillColor="#38000000"
+            android:pathData="M35,29 H79 A3,3 0 0 1 82,32 V81 A3,3 0 0 1 79,84 H35 A3,3 0 0 1 32,81 V32 A3,3 0 0 1 35,29 Z" />
+        <!-- Polaroid -->
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M33,26 H75 A3,3 0 0 1 78,29 V78 A3,3 0 0 1 75,81 H33 A3,3 0 0 1 30,78 V29 A3,3 0 0 1 33,26 Z" />
+        <!-- Himmel -->
+        <path android:pathData="M34,30 H74 V58 H34 Z">
+            <aapt:attr name="android:fillColor">
+                <gradient
+                    android:type="linear"
+                    android:startX="54" android:startY="30"
+                    android:endX="54" android:endY="58"
+                    android:startColor="#FF7CC6FE"
+                    android:endColor="#FFD8F1FF" />
+            </aapt:attr>
+        </path>
+        <!-- Sonne -->
+        <path
+            android:fillColor="#FFFFB703"
+            android:pathData="M63.5,39 a4.5,4.5 0 1 0 9,0 a4.5,4.5 0 1 0 -9,0 Z" />
+        <!-- Berge -->
+        <path
+            android:fillColor="#FF2A9D8F"
+            android:pathData="M34,58 L47,40 L55,50 L61,44 L74,58 Z" />
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M47,40 L51.5,46.2 L49,45 L46.5,47 L44,44.2 Z" />
+        <path
+            android:fillColor="#FF1D3557"
+            android:pathData="M34,58 L41,49.5 L49,58 Z" />
+        <!-- J -->
+        <path
+            android:pathData="M45.5,62.5 H53 M50.5,62.5 V72 A3.6,3.6 0 0 1 43.3,72"
+            android:strokeColor="#FF1D3557"
+            android:strokeWidth="3.2"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <!-- F -->
+        <path
+            android:pathData="M58,76 V62.5 H65.5 M58,69 H64"
+            android:strokeColor="#FFE76F51"
+            android:strokeWidth="3.2"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+    </group>
+</vector>

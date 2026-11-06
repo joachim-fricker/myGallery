@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Einfarbige Version für "Designte App-Symbole" (Android Themed Icons) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:scaleX="0.88"
+        android:scaleY="0.88">
+        <!-- Rahmen -->
+        <path
+            android:pathData="M33,27.5 H75 A1.5,1.5 0 0 1 76.5,29 V78 A1.5,1.5 0 0 1 75,79.5 H33 A1.5,1.5 0 0 1 31.5,78 V29 A1.5,1.5 0 0 1 33,27.5 Z"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="3" />
+        <!-- Sonne + Berge -->
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M63.5,39 a4.5,4.5 0 1 0 9,0 a4.5,4.5 0 1 0 -9,0 Z M34,58 L47,40 L55,50 L61,44 L74,58 Z" />
+        <!-- JF -->
+        <path
+            android:pathData="M45.5,62.5 H53 M50.5,62.5 V72 A3.6,3.6 0 0 1 43.3,72 M58,76 V62.5 H65.5 M58,69 H64"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="3.2"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+    </group>
+</vector>
