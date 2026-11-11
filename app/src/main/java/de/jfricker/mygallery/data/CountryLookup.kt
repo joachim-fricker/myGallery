@@ -76,6 +76,7 @@ class CountryLookup private constructor(private val countries: List<CountryShape
 
     /** Liefert ISO-Code (z.B. "PT") oder null. Punkte knapp ausserhalb (Küste/Meer) gehen zum nächsten Land. */
     fun find(lat: Double, lon: Double): String? {
+        VisitedCountries.OVERRIDES.firstOrNull { it.contains(lat, lon) }?.let { return it.country }
         for (c in countries) {
             if (c.containsBox(lon, lat) && c.contains(lon, lat)) return c.code
         }
@@ -96,7 +97,7 @@ class CountryLookup private constructor(private val countries: List<CountryShape
         private const val ASSET = "countries_10m.geojson"
         private const val OLD_FILE = "countries.geojson" // alte 1:50-Mio.-Datei
         /** Erhöhen, wenn sich die Grenzdaten ändern -> alle Länder werden neu berechnet. */
-        const val DATA_VERSION = 2
+        const val DATA_VERSION = 3   // 3: Overrides (Bhadrapur → Nepal)
         const val DOWNLOAD_URL =
             "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_0_countries.geojson"
 

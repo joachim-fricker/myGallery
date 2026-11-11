@@ -88,6 +88,25 @@ fun CountriesScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            // Länderliste in die Zwischenablage (zum Vergleich mit der Windows-App)
+            val context = androidx.compose.ui.platform.LocalContext.current
+            TextButton(onClick = {
+                val text = buildString {
+                    appendLine("Code\tLand\tBilder\tStatus")
+                    for (c in countries) {
+                        val status = when {
+                            c.manual -> "manuell"
+                            c.excluded -> "ausgeschlossen"
+                            else -> "besucht"
+                        }
+                        appendLine("${c.code}\t${c.name}\t${c.images.size}\t$status")
+                    }
+                    append("Besucht: $visitedCount")
+                }
+                val clipboard = context.getSystemService(android.content.ClipboardManager::class.java)
+                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Länder", text))
+                android.widget.Toast.makeText(context, "Länderliste kopiert", android.widget.Toast.LENGTH_SHORT).show()
+            }) { Text("Kopieren") }
             SingleChoiceSegmentedButtonRow {
                 SegmentedButton(
                     selected = !vm.countryShowMap,

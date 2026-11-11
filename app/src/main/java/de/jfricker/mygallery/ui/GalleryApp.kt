@@ -190,6 +190,20 @@ fun GalleryApp(vm: GalleryViewModel) {
                             Icon(Icons.Default.Search, contentDescription = "Personen suchen")
                         }
                     }
+                    val ctx = LocalContext.current
+                    var rootMenu by remember { mutableStateOf(false) }
+                    IconButton(onClick = { rootMenu = true }) { Icon(Icons.Default.MoreVert, contentDescription = "Menü") }
+                    DropdownMenu(expanded = rootMenu, onDismissRequest = { rootMenu = false }) {
+                        DropdownMenuItem(
+                            text = { Text("Export für Windows") },
+                            onClick = {
+                                rootMenu = false
+                                vm.exportForWindows { msg ->
+                                    android.widget.Toast.makeText(ctx, msg, android.widget.Toast.LENGTH_LONG).show()
+                                }
+                            },
+                        )
+                    }
                 },
             ) {
                 if (loaded && images.isEmpty()) {

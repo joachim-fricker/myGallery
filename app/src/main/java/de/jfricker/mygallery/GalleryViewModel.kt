@@ -23,6 +23,7 @@ import de.jfricker.mygallery.data.LocationReader
 import de.jfricker.mygallery.data.LocationStore
 import de.jfricker.mygallery.data.MediaImage
 import de.jfricker.mygallery.data.MediaRepository
+import de.jfricker.mygallery.data.WindowsExport
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
@@ -399,5 +400,24 @@ class GalleryViewModel(app: Application) : AndroidViewModel(app) {
     fun setShowUnnamed(show: Boolean) {
         _showUnnamed.value = show
         facePrefs.edit().putBoolean("showUnnamed", show).apply()
+    }
+
+    /** Export aller eigenen Daten für myGallery unter Windows (ZIP im Download-Ordner). */
+    fun exportForWindows(onDone: (String) -> Unit) {
+        viewModelScope.launch {
+            val msg = withContext(Dispatchers.IO) {
+                try {
+                    val name = faceMutex.withLock {
+                        ensureFaceDb()
+                        faceDb.save()
+                        WindowsExport.export(getApplication(), _images.value)
+                    }
+                    "Exportiert: Download/$name"
+                } catch (e: Exception) {
+                    "Export fehlgeschlagen: ${e.message}"
+                }
+            }
+            onDone(msg)
+        }
     }
 }
