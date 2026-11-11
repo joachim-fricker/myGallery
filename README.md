@@ -13,7 +13,8 @@ Nur Bilder aus `DCIM/Camera/` und `Data/images/` (inkl. Unterordner) – anpassb
 | **Favoriten** | Herz im Vollbild antippen. Album „Favoriten“ ganz oben im Tab Alben; dort Mehrfachauswahl zum Entfernen. Kleines Herz auf Vorschaubildern. Gespeichert nur in myGallery (`files/favorites.txt`, Schlüssel = Pfad + Dateiname) |
 | **Alben** | Pro Jahr (aufklappbar) alle Alben/Ordner dieses Jahres. Ordner-Jahr = Jahr am Anfang des Ordnernamens/Pfads (z.B. 2015_Zinnen), sonst Jahr der meisten Aufnahmen; Kamera-Ordner wird pro Jahr als Album „Kamera“ eingeordnet |
 | **Personen** | Gesichter werden auf dem Gerät erkannt (ML Kit) und per Gesichtsmodell (TFLite) zu Personen gruppiert. Namen vergeben, Personen zusammenführen; in einer Person: langer Druck startet Mehrfachauswahl -> Titelbild (1 Bild), anderer/neuer Person zuordnen, entfernen. Ansicht nach Gruppen: „Haupt“ immer sichtbar, weitere Gruppen (Alcina Familie, Ulli, VB, andere, eigene) aufklappbar, dann „Ohne Namen“ (aufklappbar). Reihenfolge innerhalb einer Gruppe per lange drücken + ziehen; Gruppe einer Person im Menü ⋮; „Gruppen bearbeiten“ (Knopf oben oder langer Druck auf eine Gruppen-Überschrift): Reihenfolge per Drag & Drop am Griff ≡, umbenennen, löschen, neu anlegen |
-| **Länder** | Liste mit Flagge + Name, Suchfeld; Land offline aus GPS-EXIF bestimmt |
+| **Personen suchen** | Lupe im Tab Personen oder in einer Person ⋮ → „Mit weiteren Personen …“. Personen antippen (gruppiert, Zahl = Treffer mit dieser Person dazu, ausgegraut = nie zusammen auf einem Bild) -> Bilder, auf denen alle ausgewählten Personen sind. Schalter „Nur diese Personen“: keine weiteren benannten Personen auf dem Bild. Zusätzlich einschränkbar auf **Land** und **Jahr** (Auswahlmenüs zeigen nur Länder/Jahre mit Treffern, mit Anzahl). Es zählen bestätigte + automatische Zuordnungen |
+| **Länder** | Umschalter **Liste / Karte**. Liste: Flagge, Name, Anzahl Bilder, Zeitraum (erstes – letztes Bild), Suchfeld, Sortierung A–Z oder nach Bildern. Karte: Weltkarte, besuchte Länder rot; Tipp auf ein Land zeigt Infos + „Bilder“. Besucht = Land aus GPS-EXIF oder manuell eingetragen; Regeln in `data/VisitedCountries.kt` (MANUAL = ohne Bilder besucht, EXCLUDED = Bilder zählen nicht als besucht, z.B. Indien) |
 | **Karte** | OpenStreetMap (osmdroid), Bilder als Cluster mit Vorschaubild + Anzahl. Tipp auf Cluster oder „Bilder im Ausschnitt“ öffnet die Auswahl |
 
 Vollbild: Wischen, Pinch-Zoom, Doppeltipp, Teilen, Details (ⓘ: kleine Karte ganz oben -> Tipp öffnet die grosse Karte am Aufnahmeort, Speicherort, alle Datumsquellen, EXIF, GPS, Land, erkannte Personen mit „Zuordnen …“ inkl. neue Person erstellen).
@@ -22,7 +23,8 @@ App-Icon: Polaroid mit Bergen/Sonne und „JF“ (res/drawable/ic_launcher_*.xml
 
 ## Länder (offline)
 GPS-Daten und Aufnahmedatum werden einmal pro Bild aus EXIF gelesen und in `files/locations.tsv` gecacht.
-Ländergrenzen: Natural Earth 1:10 Mio. (Public Domain). Die App lädt sie beim ersten Bedarf
+Ländergrenzen: Natural Earth 1:10 Mio. (Public Domain) für die Zuordnung; zum Zeichnen der Länderkarte
+`app/src/main/assets/countries_map.geojson` (Natural Earth 1:50 Mio., id = ISO-Alpha-2, deutscher Name; aus dem activityViewer übernommen). Die App lädt sie beim ersten Bedarf
 einmalig herunter (~25 MB) und arbeitet danach offline. Für eine komplett offline APK die Datei
 hier herunterladen und als `app/src/main/assets/countries_10m.geojson` ablegen:
 https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_0_countries.geojson

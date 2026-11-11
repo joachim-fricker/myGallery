@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.CompositionLocalProvider
 import de.jfricker.mygallery.data.favKey
@@ -68,6 +69,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import de.jfricker.mygallery.GalleryViewModel
 import de.jfricker.mygallery.ScanState
+import de.jfricker.mygallery.data.Countries
 import de.jfricker.mygallery.data.MapPoint
 import de.jfricker.mygallery.data.MediaImage
 import de.jfricker.mygallery.data.buildAlbums
@@ -91,6 +93,7 @@ sealed class Screen {
     class PersonDetail(val personId: Int) : Screen()
     class Review(val personId: Int, val allMode: Boolean) : Screen()
     class Favorites : Screen()
+    class PersonSearch : Screen()
 }
 
 private enum class Tab(val label: String, val icon: ImageVector) {
@@ -175,12 +178,19 @@ fun GalleryApp(vm: GalleryViewModel) {
                     Tab.ALL -> "Alle Bilder (${images.size})"
                     Tab.ALBUMS -> "Alben (${albums.sumOf { it.albums.size }})"
                     Tab.PERSONS -> "Personen (${persons.size})"
-                    Tab.COUNTRIES -> "Länder (${countries.size})"
+                    Tab.COUNTRIES -> "Länder (${countries.count { it.visited }})"
                     Tab.MAP -> "Karte (${mapPoints.size})"
                 },
                 scan = scan,
                 onRefresh = { vm.refresh() },
                 onRetry = { vm.retryScan() },
+                extraActions = {
+                    if (Tab.entries[tab] == Tab.PERSONS) {
+                        IconButton(onClick = { push(Screen.PersonSearch()) }) {
+                            Icon(Icons.Default.Search, contentDescription = "Personen suchen")
+                        }
+                    }
+                },
             ) {
                 if (loaded && images.isEmpty()) {
                     EmptyHint("Keine Bilder gefunden.\nGesucht wird in DCIM/Camera und Data/images.")
@@ -209,7 +219,7 @@ fun GalleryApp(vm: GalleryViewModel) {
                     ) {
                         push(Screen.PersonDetail(it.id))
                     }
-                    Tab.COUNTRIES -> CountriesScreen(countries, withoutGps, countryList) {
+                    Tab.COUNTRIES -> CountriesScreen(countries, withoutGps, mapPoints.size, countryList, vm) {
                         push(Screen.CountryDetail(it.code, "${it.flag} ${it.name}"))
                     }
                     Tab.MAP -> MapScreen(mapPoints, vm) { title, ids -> push(Screen.Selection(title, ids)) }
@@ -281,6 +291,15 @@ fun GalleryApp(vm: GalleryViewModel) {
                                 IconButton(onClick = { menu = true }) { Icon(Icons.Default.MoreVert, contentDescription = "Menü") }
                                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                                     if (person.name != null) {
+                                        DropdownMenuItem(
+                                            text = { Text("Mit weiteren Personen …") },
+                                            onClick = {
+                                                menu = false
+                                                vm.searchPersons.clear()
+                                                vm.searchPersons.add(person.id)
+                                                push(Screen.PersonSearch())
+                                            },
+                                        )
                                         DropdownMenuItem(
                                             text = { Text("Vorschläge prüfen (${person.suggestions.size})") },
                                             onClick = { menu = false; push(Screen.Review(person.id, false)) },
@@ -439,6 +458,51 @@ fun GalleryApp(vm: GalleryViewModel) {
                 }
             }
 
+            is Screen.PersonSearch -> {
+                val perImage = remember(images, faces) { namedPersonsPerImage(images, faces) }
+                val selectedIds = vm.searchPersons.filter { pid -> persons.any { it.id == pid && it.name != null } }
+                val personHits = remember(images, perImage, selectedIds, vm.searchOnlyThese) {
+                    searchByPersons(images, perImage, selectedIds.toSet(), vm.searchOnlyThese)
+                }
+                // Land/Jahr je Treffer
+                val countryOf: (MediaImage) -> String? = { img ->
+                    geo[img.id]?.takeIf { it.dateModified == img.dateModified && it.country.isNotEmpty() && it.country != "-" }?.country
+                }
+                val filter = remember(personHits, geo, vm.searchCountry, vm.searchYear) {
+                    personFilter(personHits, countryOf, vm.searchCountry, vm.searchYear)
+                }
+                val results = filter.results
+                val names = selectedIds.mapNotNull { pid -> persons.firstOrNull { it.id == pid }?.displayName }
+                val extra = buildList {
+                    vm.searchCountry?.let { add(Countries.name(it)) }
+                    vm.searchYear?.let { add(it.toString()) }
+                    if (vm.searchOnlyThese) add("nur diese Personen")
+                }
+                DetailScaffold(
+                    title = if (names.isEmpty()) "Personen suchen" else names.joinToString(" + "),
+                    subtitle = if (names.isEmpty()) "Personen antippen" else
+                        (listOf("${results.size} Bilder") + extra).joinToString(" · "),
+                    onBack = ::pop,
+                ) { mod ->
+                    PersonSearchContent(
+                        persons = persons,
+                        perImage = perImage,
+                        selected = selectedIds,
+                        onToggle = { vm.toggleSearchPerson(it) },
+                        onlyThese = vm.searchOnlyThese,
+                        onOnlyThese = { vm.searchOnlyThese = it },
+                        filter = filter,
+                        country = vm.searchCountry,
+                        onCountry = { vm.searchCountry = it },
+                        year = vm.searchYear,
+                        onYear = { vm.searchYear = it },
+                        gridState = top.gridState,
+                        onOpen = { openViewer(results, it) },
+                        modifier = mod,
+                    )
+                }
+            }
+
             is Screen.Favorites -> {
                 val selected = remember { mutableStateListOf<Long>() }
                 val selecting = selected.isNotEmpty()
@@ -518,6 +582,7 @@ private fun RootScaffold(
     scan: ScanState,
     onRefresh: () -> Unit,
     onRetry: () -> Unit,
+    extraActions: @Composable RowScope.() -> Unit = {},
     content: @Composable () -> Unit,
 ) {
     Scaffold(
@@ -525,6 +590,7 @@ private fun RootScaffold(
             TopAppBar(
                 title = { Text(title) },
                 actions = {
+                    extraActions()
                     IconButton(onClick = onRefresh) { Icon(Icons.Default.Refresh, contentDescription = "Aktualisieren") }
                 },
             )

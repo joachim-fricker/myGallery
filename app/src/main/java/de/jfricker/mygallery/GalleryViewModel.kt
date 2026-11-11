@@ -3,7 +3,12 @@ package de.jfricker.mygallery
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import de.jfricker.mygallery.data.CountryLookup
+import de.jfricker.mygallery.data.CountryShapes
 import de.jfricker.mygallery.data.DateSource
 import de.jfricker.mygallery.data.FaceAnalyzer
 import de.jfricker.mygallery.data.FaceDb
@@ -63,6 +68,46 @@ class GalleryViewModel(app: Application) : AndroidViewModel(app) {
     var mapLat = 0.0
     var mapLon = 0.0
     var mapZoom = 0.0
+
+    // ---------- Personen-Suche ----------
+    /** ausgewählte Personen (IDs) – bleibt erhalten, wenn man die Suche verlässt */
+    val searchPersons = mutableStateListOf<Int>()
+    /** nur Bilder mit genau diesen benannten Personen */
+    var searchOnlyThese by mutableStateOf(false)
+    /** Personen-Suche zusätzlich auf ein Land (ISO-Code) / Jahr einschränken; null = alle */
+    var searchCountry by mutableStateOf<String?>(null)
+    var searchYear by mutableStateOf<Int?>(null)
+
+    fun toggleSearchPerson(id: Int) {
+        if (id in searchPersons) searchPersons.remove(id) else searchPersons.add(id)
+    }
+
+    // ---------- Länder (Liste / Karte) ----------
+    /** Länder-Tab zeigt die Karte statt der Liste */
+    var countryShowMap by mutableStateOf(false)
+    /** Liste nach Anzahl Bilder statt A–Z sortieren */
+    var countrySortByImages by mutableStateOf(false)
+    /** auf der Länderkarte ausgewähltes Land (ISO-Code) */
+    var countrySelected by mutableStateOf<String?>(null)
+    /** Land, auf das die Länderkarte beim nächsten Anzeigen zentriert */
+    var countryFocus by mutableStateOf<String?>(null)
+    var countryMapLat = 30.0
+    var countryMapLon = 10.0
+    var countryMapZoom = 0.0
+
+    private val _countryShapes = MutableStateFlow<CountryShapes?>(null)
+    /** Grenzen zum Zeichnen der Länderkarte (lazy aus assets/countries_map.geojson) */
+    val countryShapes: StateFlow<CountryShapes?> = _countryShapes
+
+    fun loadCountryShapes() {
+        if (_countryShapes.value != null) return
+        viewModelScope.launch {
+            _countryShapes.value = try { CountryShapes.get(getApplication()) } catch (_: Exception) { null }
+        }
+    }
+
+    /** Name aus den Kartendaten (für Länder ohne Bilder, z.B. "Noch nicht besucht") */
+    fun countryShapeName(code: String): String? = _countryShapes.value?.byCode?.get(code)?.name
 
     /** Bilder so wie vom MediaStore geliefert (ohne EXIF-Datum) */
     @Volatile private var rawImages: List<MediaImage> = emptyList()

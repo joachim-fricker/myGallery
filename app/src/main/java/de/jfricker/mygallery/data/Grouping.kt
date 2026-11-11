@@ -29,8 +29,18 @@ data class CountryGroup(
     val code: String,
     val name: String,
     val flag: String,
+    /** neueste zuerst; leer bei manuell eingetragenen Ländern */
     val images: List<MediaImage>,
-)
+    /** ohne Bilder als besucht eingetragen (VisitedCountries.MANUAL) */
+    val manual: Boolean = false,
+    /** hat Bilder, zählt aber nicht als besucht (VisitedCountries.EXCLUDED) */
+    val excluded: Boolean = false,
+) {
+    val visited: Boolean get() = !excluded
+    /** ältestes / neuestes Aufnahmedatum (0 = keine Bilder) */
+    val firstDate: Long get() = images.minOfOrNull { it.date } ?: 0L
+    val lastDate: Long get() = images.maxOfOrNull { it.date } ?: 0L
+}
 
 data class MapPoint(val id: Long, val uri: Uri, val lat: Double, val lon: Double, val date: Long)
 
@@ -114,16 +124,26 @@ fun dateFromFolder(img: MediaImage): Long? {
         .atTime(12, 0).atZone(zone).toInstant().toEpochMilli()
 }
 
-/** Gruppierung nach Land; nur Bilder mit GPS und gefundenem Land. */
+/**
+ * Länderliste: Länder aus den GPS-Daten der Bilder + manuell eingetragene (ohne Bilder).
+ * Ausgeschlossene Länder (VisitedCountries.EXCLUDED) bleiben mit ihren Bildern drin, zählen aber nicht als besucht.
+ * Sortierung: nach Name.
+ */
 fun buildCountries(images: List<MediaImage>, geo: Map<Long, GeoEntry>): List<CountryGroup> {
     val collator = Collator.getInstance()
-    return images.groupBy { img ->
+    val fromImages = images.groupBy { img ->
         val e = geo[img.id]
         if (e != null && e.dateModified == img.dateModified && e.country.isNotEmpty() && e.country != "-") e.country else null
     }
         .filterKeys { it != null }
-        .map { (code, imgs) -> CountryGroup(code!!, Countries.name(code), Countries.flag(code), imgs) }
-        .sortedWith { a, b -> collator.compare(a.name, b.name) }
+        .map { (code, imgs) ->
+            CountryGroup(code!!, Countries.name(code), Countries.flag(code), imgs, excluded = code in VisitedCountries.EXCLUDED)
+        }
+    val known = fromImages.mapTo(HashSet()) { it.code }
+    val manual = (VisitedCountries.MANUAL - known).map { code ->
+        CountryGroup(code, Countries.name(code), Countries.flag(code), emptyList(), manual = true)
+    }
+    return (fromImages + manual).sortedWith { a, b -> collator.compare(a.name, b.name) }
 }
 
 /** Monats-Überschriften für die Bilderliste; Reihenfolge bleibt erhalten. */
